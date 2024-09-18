@@ -5,13 +5,26 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "keywords": [],
+  "keywords": [
+    "email",
+    "existence",
+    "validation",
+    "smtp",
+    "mx",
+    "dns",
+    "checker",
+    "nodejs",
+    "email existence",
+    "SMTP",
+    "MX records",
+    "email validation",
+    "email checker"
+  ],
   "author": "",
   "license": "ISC",
   "description": "",
   "dependencies": {
-    "advanced-email-existence": "file:",
-    "dns": "^0.2.2",
+    "dns": "^0.1.2",
     "net": "^1.0.2"
   },
   "type": "module"
