@@ -1,0 +1,18 @@
+{
+  "name": "advanced-email-existence",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "advanced-email-existence": "file:",
+    "dns": "^0.2.2",
+    "net": "^1.0.2"
+  },
+  "type": "module"
+}
