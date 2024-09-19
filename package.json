@@ -24,6 +24,7 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
+    "advanced-email-existence": "file:",
     "dns": "^0.1.2",
     "net": "^1.0.2"
   },
