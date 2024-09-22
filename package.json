@@ -1,8 +1,8 @@
 {
   "name": "advanced-email-existence",
-  "version": "1.0.3",
-  "main": "index.js",      
-  "module": "index.js",    
+  "version": "1.0.4",
+  "main": "index.js",
+  "module": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "build": "mkdir -p dist/cjs && mkdir -p dist/esm && cp index.js dist/esm/index.js && cp index.js dist/cjs/index.js"
@@ -37,11 +37,11 @@
     "dns": "^0.2.2",
     "net": "^1.0.2"
   },
-  "type": "module",                  
+  "type": "module",
   "exports": {
     ".": {
-      "import": "./index.js",   
-      "require": "./index.js"  
+      "import": "./index.js",
+      "require": "./index.js"
     }
   }
 }
