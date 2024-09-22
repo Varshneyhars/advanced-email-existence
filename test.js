@@ -1,25 +1,56 @@
 // Check if running in CommonJS or ES Module environment
-let checkEmailExistence;
-
-try {
-    // Try ES module dynamic import
-    checkEmailExistence = (await import('./index.js')).default;
-} catch (e) {
-    // Fallback to CommonJS if ES module import fails
-    checkEmailExistence = require('./index.js');
-}
+let checkEmailExistence, checkMultipleEmails;
 
 (async () => {
     try {
-        const { valid, undetermined } = await checkEmailExistence('manaswinisharma.manu@gmail.com');
+        if (typeof require !== 'undefined') {
+            // CommonJS environment
+            const moduleExports = require('./index.js');
+            checkEmailExistence = moduleExports.checkEmailExistence || moduleExports.default || moduleExports;
+            checkMultipleEmails = moduleExports.checkMultipleEmails || moduleExports.default || moduleExports;
+        } else {
+            // ES Module environment
+            const module = await import('./index.js');
+            checkEmailExistence = module.checkEmailExistence || module.default;
+            checkMultipleEmails = module.checkMultipleEmails || module.default;
+        }
+
+        // Example: Check single email
+        console.time('Single Email Check Time');  // Start timing single email check
+        const singleEmailResult = await checkEmailExistence('manaswinisharma.manu@gmail.com');
+        console.timeEnd('Single Email Check Time');  // End timing and log the result
+
+        const { email, valid, undetermined } = singleEmailResult;
 
         if (undetermined) {
-            console.log('Email existence is undetermined');
+            console.log(`Email existence for ${email} is undetermined`);
         } else if (valid) {
-            console.log('Email exists');
+            console.log(`Email ${email} exists`);
         } else {
-            console.log('Email does not exist');
+            console.log(`Email ${email} does not exist`);
         }
+
+        // Example: Check multiple emails
+        const emails = [
+            'manaswinisharma.manu@gmail.com',
+            '20brapcco06@polygwalior.ac.in',
+            'validemail@anotherdomain.com'
+        ];
+
+        console.time('Multiple Email Check Time');  // Start timing multiple email check
+        const multipleResults = await checkMultipleEmails(emails);
+        console.timeEnd('Multiple Email Check Time');  // End timing and log the result
+
+        multipleResults.forEach(({ email, valid, undetermined }) => {
+            if (undetermined) {
+                console.log(`Email existence for ${email} is undetermined`);
+            } else if (valid) {
+                console.log(`Email ${email} exists`);
+            } else {
+                console.log(`Email ${email} does not exist`);
+            }
+        });
+
     } catch (err) {
         console.error('Error checking email existence:', err);
     }

@@ -1,47 +1,65 @@
-// Import dns and net based on the environment (CommonJS or ES Module)
-let dns, net;
+// Dynamic imports for CommonJS and ES Module compatibility
+let dns, net, pLimit;
 
 if (typeof require !== 'undefined') {
+    // CommonJS environment
     dns = require('dns/promises');
     net = require('net');
+    pLimit = require('p-limit');
 } else {
-    dns = await import('dns/promises');
-    net = await import('net');
+    // ES Module environment (using dynamic imports)
+    dns = (await import('dns/promises')).default;
+    net = (await import('net')).default;
+    pLimit = (await import('p-limit')).default;
 }
 
 const MAX_EMAIL_LEN = 300;
-const CONNECTION_TIMEOUT = 5000; // Reduced timeout for faster response
+const CONNECTION_TIMEOUT = 5000; // Timeout for faster response
+const MAX_PARALLEL_CONNECTIONS = 10; // Limit parallel connections to prevent network overload
+
+// Use p-limit to control concurrency
+const limit = pLimit(MAX_PARALLEL_CONNECTIONS);
+
+// Cache MX records to reduce redundant lookups for the same domain
+const mxCache = new Map();
+
+async function resolveMxCached(domain) {
+    if (mxCache.has(domain)) return mxCache.get(domain);
+
+    try {
+        const addresses = (await dns.resolveMx(domain)).sort((a, b) => a.priority - b.priority);
+        mxCache.set(domain, addresses);
+        return addresses;
+    } catch (err) {
+        mxCache.set(domain, null); // Cache failed results to prevent repeated lookups
+        return null;
+    }
+}
 
 async function checkEmailExistence(email, timeout = CONNECTION_TIMEOUT, fromEmail = email) {
     // Validate email format and length
     if (email.length > MAX_EMAIL_LEN || !/^\S+@\S+$/.test(email)) {
-        // console.log('Invalid email format or too long.');
-        return { valid: false, undetermined: false };
+        return { email, valid: false, undetermined: false };
     }
 
     const domain = email.split('@')[1];
+    const addresses = await resolveMxCached(domain);
 
-    let addresses;
-    try {
-        // Resolve MX records for the domain
-        addresses = (await dns.resolveMx(domain)).sort((a, b) => a.priority - b.priority);
-    } catch (err) {
-        // console.log('DNS resolution failed:', err);
-        return { valid: false, undetermined: false };
+    if (!addresses) {
+        return { email, valid: false, undetermined: false };
     }
 
-    // Try connecting to each MX server in parallel for faster results
+    // Check each MX server with concurrency control
     const checkPromises = addresses.map(({ exchange }) =>
-        checkMXServer(exchange, email, fromEmail, timeout)
+        limit(() => checkMXServer(exchange, email, fromEmail, timeout))
     );
 
-    // Use Promise.any to return the first resolved valid result (fastest response)
+    // Use Promise.race to return as soon as the first valid result is received
     try {
-        const result = await Promise.any(checkPromises);
-        return result;
+        const result = await Promise.race(checkPromises);
+        return { email, ...result };
     } catch (err) {
-        // console.log('All MX servers returned undetermined or failed.');
-        return { valid: false, undetermined: true };
+        return { email, valid: false, undetermined: true };
     }
 }
 
@@ -53,11 +71,9 @@ async function checkMXServer(mxHost, email, fromEmail, timeout) {
     ];
 
     return new Promise((resolve, reject) => {
-        const port = 25; // Only use port 25
+        const port = 25;
 
-        // console.log(`Trying connection to ${mxHost} on port ${port}`);
         const conn = net.createConnection({ host: mxHost, port });
-
         conn.setEncoding('ascii');
         conn.setTimeout(timeout);
 
@@ -82,13 +98,13 @@ async function checkMXServer(mxHost, email, fromEmail, timeout) {
         });
 
         conn.on('error', () => {
-            conn.destroy(); // Close the connection on error
-            reject(); // Treat connection failure as undetermined
+            conn.destroy();
+            reject(); // Treat as undetermined
         });
 
         conn.on('timeout', () => {
-            conn.destroy(); // Close the connection on timeout
-            reject(); // Treat timeout as undetermined
+            conn.destroy();
+            reject(); // Treat as undetermined
         });
 
         conn.on('end', () => {
@@ -97,11 +113,21 @@ async function checkMXServer(mxHost, email, fromEmail, timeout) {
     });
 }
 
-// Exports for ES modules and CommonJS compatibility
-// For CommonJS
-if (typeof module !== 'undefined' && typeof module.exports !== 'undefined') {
-    module.exports = checkEmailExistence;
+// Function to check multiple emails with parallelism
+async function checkMultipleEmails(emails, timeout = CONNECTION_TIMEOUT, fromEmail) {
+    const results = await Promise.allSettled(
+        emails.map(email =>
+            limit(() => checkEmailExistence(email, timeout, fromEmail))
+        )
+    );
+
+    return results.map(result => result.status === 'fulfilled' ? result.value : { email: result.reason, valid: false, undetermined: true });
 }
 
-// For ES Modules (must be at the top level)
-export default checkEmailExistence;
+// For CommonJS compatibility, use module.exports
+if (typeof module !== 'undefined' && typeof module.exports !== 'undefined') {
+    module.exports = { checkEmailExistence, checkMultipleEmails };
+}
+
+// Export for ES Module
+export { checkEmailExistence, checkMultipleEmails };
