@@ -1,6 +1,6 @@
 {
   "name": "advanced-email-existence",
-  "version": "1.0.6",
+  "version": "1.0.5",
   "main": "index.cjs",
   "module": "index.mjs",
   "scripts": {
@@ -39,7 +39,7 @@
     "net": "^1.0.2",
     "p-limit": "^6.1.0"
   },
-  "type": "module",
+  "type": "commonjs",
   "exports": {
     ".": {
       "import": "./index.mjs",
