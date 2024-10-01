@@ -49,6 +49,7 @@ async function checkEmailExistence(email, timeout = CONNECTION_TIMEOUT, fromEmai
     }
 }
 
+
 // Function to check MX server
 async function checkMXServer(mxHost, email, fromEmail, timeout) {
     const commands = [`helo ${mxHost}`, `mail from: <${fromEmail}>`, `rcpt to: <${email}>`];
@@ -61,19 +62,26 @@ async function checkMXServer(mxHost, email, fromEmail, timeout) {
         let response = false;
 
         conn.on('data', (data) => {
-            if (/^220|^250/.test(data)) {
+            console.log(`Received: ${data}`); // Log responses for debugging
+            if (/^220|^250/.test(data)) {  // Server ready or command accepted
                 if (i < commands.length) {
                     conn.write(commands[i] + '\r\n');
                     i++;
                 } else {
-                    response = true;
+                    response = true;  // Successfully processed all commands
                     conn.end();
                 }
-            } else if (/^550/.test(data)) {
+            } else if (/^550/.test(data)) {  // Mailbox unavailable
+                response = false;  // Invalid email address
+                conn.end();
+            } else if (/^421|^450|^451/.test(data)) {  // Temporary failures
+                // Handle temporary failures gracefully; consider retrying or marking as undetermined
                 response = false;
-                conn.end();
+                conn.end();  // End connection, treat as undetermined
             } else {
-                conn.end();
+                // Log unexpected responses
+                console.log(`Unexpected response: ${data}`);
+                conn.end();  // Close the connection for unexpected responses
             }
         });
 
@@ -92,6 +100,7 @@ async function checkMXServer(mxHost, email, fromEmail, timeout) {
         });
     });
 }
+
 
 // Function to check multiple emails
 async function checkMultipleEmails(emails, timeout = CONNECTION_TIMEOUT, fromEmail) {

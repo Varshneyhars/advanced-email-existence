@@ -16,7 +16,7 @@ let checkEmailExistence, checkMultipleEmails;
 
         // Example: Check single email
         console.time('Single Email Check Time');  // Start timing single email check
-        const singleEmailResult = await checkEmailExistence('manaswinisharma.manu@gmail.com');
+        const singleEmailResult = await checkEmailExistence('varshney.harshit@outlook.com');
         console.timeEnd('Single Email Check Time');  // End timing and log the result
 
         const { email, valid, undetermined } = singleEmailResult;
