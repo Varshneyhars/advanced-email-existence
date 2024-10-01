@@ -1,18 +1,17 @@
 // CommonJS syntax
 const dns = require('dns/promises');
 const net = require('net');
+const { default: pLimit } = require('p-limit'); 
 
 // Constants
 const MAX_EMAIL_LEN = 300;
 const CONNECTION_TIMEOUT = 5000;
-const MAX_PARALLEL_CONNECTIONS = 10;
+const MAX_PARALLEL_CONNECTIONS = 5; 
+const RETRY_DELAY_BASE = 1000;
+const MAX_RETRY_ATTEMPTS = 3; 
 
 const mxCache = new Map();
-
-async function getPLimit() {
-    const { default: pLimit } = await import('p-limit'); // Dynamically import p-limit
-    return pLimit(MAX_PARALLEL_CONNECTIONS);
-}
+const limit = pLimit(MAX_PARALLEL_CONNECTIONS);
 
 // Function to resolve MX records with caching
 async function resolveMxCached(domain) {
@@ -28,8 +27,7 @@ async function resolveMxCached(domain) {
 }
 
 // Function to check email existence
-async function checkEmailExistence(email, timeout = CONNECTION_TIMEOUT, fromEmail = email) {
-    const limit = await getPLimit(); // Get the limit instance
+async function checkEmailExistence(email, timeout = CONNECTION_TIMEOUT, fromEmail = 'your-dedicated-email@yourdomain.com') { 
     if (email.length > MAX_EMAIL_LEN || !/^\S+@\S+$/.test(email)) {
         return { email, valid: false, undetermined: false };
     }
@@ -39,7 +37,7 @@ async function checkEmailExistence(email, timeout = CONNECTION_TIMEOUT, fromEmai
         return { email, valid: false, undetermined: false };
     }
     const checkPromises = addresses.map(({ exchange }) =>
-        limit(() => checkMXServer(exchange, email, fromEmail, timeout))
+        limit(() => checkMXServer(exchange, email, fromEmail, timeout, 0)) 
     );
     try {
         const result = await Promise.race(checkPromises);
@@ -49,10 +47,14 @@ async function checkEmailExistence(email, timeout = CONNECTION_TIMEOUT, fromEmai
     }
 }
 
+// Function to check MX server with retry logic
+async function checkMXServer(mxHost, email, fromEmail, timeout, retryCount) {
+    const commands = [
+        `EHLO google.com`,  // Use your actual domain here
+        `MAIL FROM: <${fromEmail}>`, 
+        `RCPT TO: <${email}>`
+    ];
 
-// Function to check MX server
-async function checkMXServer(mxHost, email, fromEmail, timeout) {
-    const commands = [`helo ${mxHost}`, `mail from: <${fromEmail}>`, `rcpt to: <${email}>`];
     return new Promise((resolve, reject) => {
         const port = 25;
         const conn = net.createConnection({ host: mxHost, port });
@@ -62,34 +64,52 @@ async function checkMXServer(mxHost, email, fromEmail, timeout) {
         let response = false;
 
         conn.on('data', (data) => {
-            console.log(`Received: ${data}`); // Log responses for debugging
-            if (/^220|^250/.test(data)) {  // Server ready or command accepted
+            console.log(`Received: ${data}`); 
+            if (/^220|^250/.test(data)) {  
                 if (i < commands.length) {
                     conn.write(commands[i] + '\r\n');
                     i++;
                 } else {
-                    response = true;  // Successfully processed all commands
+                    response = true;  
                     conn.end();
                 }
-            } else if (/^550/.test(data)) {  // Mailbox unavailable
+            } else if (/^550/.test(data)) {  
                 if (/blocked using Spamhaus/.test(data)) {
                     reject(new Error('Client host is blocked (Spamhaus)'));
                 } else {
-                    response = false;  // Invalid email address
+                    response = false;
                     conn.end();
                 }
-            } else if (/^421|^450|^451/.test(data)) {  // Temporary failures
-                response = false;  // Treat as undetermined
+            } else if (/^421|^450|^451/.test(data)) {  
                 conn.end();
+                if (retryCount < MAX_RETRY_ATTEMPTS) {
+                    const delay = RETRY_DELAY_BASE * (2 ** retryCount) + Math.random() * 1000;
+                    setTimeout(() => {
+                        checkMXServer(mxHost, email, fromEmail, timeout, retryCount + 1)
+                            .then(resolve)
+                            .catch(reject);
+                    }, delay);
+                } else {
+                    reject(new Error(`Retry limit exceeded for ${mxHost}`)); 
+                }
             } else {
                 console.log(`Unexpected response: ${data}`);
-                conn.end();  // Close the connection for unexpected responses
+                conn.end(); 
             }
         });
 
         conn.on('error', (err) => {
             conn.destroy();
-            reject(new Error(`Connection error with ${mxHost}: ${err.message}`));
+            if ((err.message.includes('ECONNREFUSED') || err.message.includes('ETIMEDOUT')) && retryCount < MAX_RETRY_ATTEMPTS) {
+                const delay = RETRY_DELAY_BASE * (2 ** retryCount) + Math.random() * 1000;
+                setTimeout(() => {
+                    checkMXServer(mxHost, email, fromEmail, timeout, retryCount + 1)
+                        .then(resolve)
+                        .catch(reject);
+                }, delay);
+            } else {
+                reject(new Error(`Connection error with ${mxHost}: ${err.message}`));
+            }
         });
 
         conn.on('timeout', () => {
@@ -103,11 +123,8 @@ async function checkMXServer(mxHost, email, fromEmail, timeout) {
     });
 }
 
-
-
 // Function to check multiple emails
 async function checkMultipleEmails(emails, timeout = CONNECTION_TIMEOUT, fromEmail) {
-    const limit = await getPLimit(); // Get the limit instance
     const results = await Promise.allSettled(
         emails.map((email) => limit(() => checkEmailExistence(email, timeout, fromEmail)))
     );
