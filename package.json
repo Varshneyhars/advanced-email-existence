@@ -1,8 +1,8 @@
 {
   "name": "advanced-email-existence",
   "version": "1.0.5",
-  "main": "index.js",
-  "module": "commonjs",
+  "main": "index.cjs",
+  "module": "index.mjs",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "build": "mkdir -p dist/cjs && mkdir -p dist/esm && cp index.js dist/esm/index.js && cp index.js dist/cjs/index.js"
@@ -34,14 +34,16 @@
   "license": "MIT",
   "description": "A Node.js library to check the existence of an email address by verifying with the domain's mail exchange (MX) servers and using SMTP commands.",
   "dependencies": {
+    "advanced-email-existence": "file:",
     "dns": "^0.2.2",
-    "net": "^1.0.2"
+    "net": "^1.0.2",
+    "p-limit": "^6.1.0"
   },
   "type": "module",
   "exports": {
     ".": {
-      "import": "./index.js",
-      "require": "./index.js"
+      "import": "./index.mjs",
+      "require": "./index.cjs"
     }
   }
 }

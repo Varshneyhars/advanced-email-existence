@@ -1,16 +1,15 @@
-// Check if running in CommonJS or ES Module environment
 let checkEmailExistence, checkMultipleEmails;
 
 (async () => {
     try {
         if (typeof require !== 'undefined') {
             // CommonJS environment
-            const moduleExports = require('./index.js');
-            checkEmailExistence = moduleExports.checkEmailExistence || moduleExports.default || moduleExports;
-            checkMultipleEmails = moduleExports.checkMultipleEmails || moduleExports.default || moduleExports;
+            const moduleExports = require('./index.cjs');
+            checkEmailExistence = moduleExports.checkEmailExistence || moduleExports.default;
+            checkMultipleEmails = moduleExports.checkMultipleEmails || moduleExports.default;
         } else {
             // ES Module environment
-            const module = await import('./index.js');
+            const module = await import('./index.mjs');
             checkEmailExistence = module.checkEmailExistence || module.default;
             checkMultipleEmails = module.checkMultipleEmails || module.default;
         }
