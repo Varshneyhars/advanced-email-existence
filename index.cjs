@@ -72,14 +72,16 @@ async function checkMXServer(mxHost, email, fromEmail, timeout) {
                     conn.end();
                 }
             } else if (/^550/.test(data)) {  // Mailbox unavailable
-                response = false;  // Invalid email address
-                conn.end();
+                if (/blocked using Spamhaus/.test(data)) {
+                    reject(new Error('Client host is blocked (Spamhaus)'));
+                } else {
+                    response = false;  // Invalid email address
+                    conn.end();
+                }
             } else if (/^421|^450|^451/.test(data)) {  // Temporary failures
-                // Handle temporary failures gracefully; consider retrying or marking as undetermined
-                response = false;
-                conn.end();  // End connection, treat as undetermined
+                response = false;  // Treat as undetermined
+                conn.end();
             } else {
-                // Log unexpected responses
                 console.log(`Unexpected response: ${data}`);
                 conn.end();  // Close the connection for unexpected responses
             }
@@ -100,6 +102,7 @@ async function checkMXServer(mxHost, email, fromEmail, timeout) {
         });
     });
 }
+
 
 
 // Function to check multiple emails
