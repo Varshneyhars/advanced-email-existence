@@ -130,3 +130,12 @@ test('every result carries the email it belongs to', async () => {
     const results = await checkMultipleEmails(['bad', 'also-bad'], 1000);
     assert.deepEqual(results.map((r) => r.email), ['bad', 'also-bad']);
 });
+
+test('package.json is reachable through the exports map', async () => {
+    // Node self-references the package by name via its own "exports" map, so
+    // this fails the same way a consumer's `require(pkg + '/package.json')`
+    // would if the subpath were missing.
+    const pkg = require('advanced-email-existence/package.json');
+    assert.equal(pkg.name, 'advanced-email-existence');
+    assert.ok(pkg.version, 'version should be readable by tooling');
+});
